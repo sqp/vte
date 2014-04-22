@@ -12,13 +12,13 @@ static inline void set_string(char** strings, int n, char* str) {
 	strings[n] = str;
 }
 
+static VteTerminal * toVteTerminal (void *p) { return (VTE_TERMINAL(p)); }
+
 */
-// #cgo pkg-config: vte
+// #cgo pkg-config: vte-2.90
 import "C"
 
 import (
-	"github.com/mattn/go-gtk/gdk"
-	"github.com/mattn/go-gtk/gtk"
 	"unsafe"
 )
 
@@ -61,17 +61,27 @@ var MikePal = map[int]string{
 }
 
 type Terminal struct {
-	gtk.GtkWidget
+	term *C.VteTerminal
 }
 
-func (v *Terminal) getTerminal() *C.VteTerminal {
-	return (*C.VteTerminal)(unsafe.Pointer(v.Widget))
+// NewTerminal is a wrapper around vte_terminal_new().
+func NewTerminal() *Terminal {
+	c := C.vte_terminal_new()
+	if c == nil {
+		return nil
+	}
+	return &Terminal{C.toVteTerminal(unsafe.Pointer(c))}
+}
+
+// Native() returns a pointer to the underlying VteTerminal.
+func (v *Terminal) Native() *C.VteTerminal {
+	return v.term
 }
 
 func (v *Terminal) Feed(m string) {
 	c := C.CString(m)
 	defer C.free(unsafe.Pointer(c))
-	C.vte_terminal_feed(v.getTerminal(), C.CString(m), -1)
+	C.vte_terminal_feed(v.Native(), C.CString(m), -1)
 }
 
 func (v *Terminal) Fork(args []string) {
@@ -81,7 +91,7 @@ func (v *Terminal) Fork(args []string) {
 		defer C.free(unsafe.Pointer(ptr))
 		C.set_string(cargs, C.int(i), ptr)
 	}
-	C.vte_terminal_fork_command_full(v.getTerminal(),
+	C.vte_terminal_fork_command_full(v.Native(),
 		C.VTE_PTY_DEFAULT,
 		nil,
 		cargs,
@@ -92,15 +102,22 @@ func (v *Terminal) Fork(args []string) {
 		nil, nil)
 }
 
+func (v *Terminal) SetFontFromString(font string) {
+	cstr := C.CString(font)
+	defer C.free(unsafe.Pointer(cstr))
+	// C.vte_terminal_set_emulation(s.Native(), cstr)
+	C.vte_terminal_set_font_from_string(v.Native(), cstr)
+}
+
 type Palette struct {
 }
 
 func (v *Terminal) SetBgColor(s string) {
-	C.vte_terminal_set_color_background(v.getTerminal(), getColor(s))
+	// C.vte_terminal_set_color_background(v.Native(), getColor(s))
 }
 
 func (v *Terminal) SetFgColor(s string) {
-	C.vte_terminal_set_color_foreground(v.getTerminal(), getColor(s))
+	// C.vte_terminal_set_color_foreground(v.Native(), getColor(s))
 }
 
 func (v *Terminal) SetColors(pal map[int]string) {
@@ -109,17 +126,13 @@ func (v *Terminal) SetColors(pal map[int]string) {
 		C.gdk_color_parse((*C.gchar)(C.CString(pal[i])), &colors[i])
 	}
 	C.vte_terminal_set_colors(
-		v.getTerminal(),
+		v.Native(),
 		nil, nil,
 		(*C.GdkColor)(unsafe.Pointer(colors)),
 		16)
 }
 
-func NewTerminal() *Terminal {
-	return &Terminal{*gtk.WidgetFromNative(unsafe.Pointer(C.vte_terminal_new()))}
-}
-
-func getColor(s string) *C.GdkColor {
-	c := gdk.Color(s).Color
-	return (*C.GdkColor)(unsafe.Pointer(&c))
-}
+// func getColor(s string) *C.GdkColor {
+// 	c := gdk.Color(s).Color
+// 	return (*C.GdkColor)(unsafe.Pointer(&c))
+// }
