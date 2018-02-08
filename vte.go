@@ -27,6 +27,7 @@ import (
 	"errors"
 	"strings"
 	"unsafe"
+	"fmt"
 )
 
 // Colors palette names.
@@ -94,6 +95,12 @@ func (v *Terminal) Feed(m string) {
 	C.vte_terminal_feed(v.Native(), C.CString(m), -1)
 }
 
+func (v *Terminal) FeedChild(m string) {
+	c := C.CString(m)
+	defer C.free(unsafe.Pointer(c))
+	C.vte_terminal_feed_child(v.Native(), C.CString(m), -1)
+}
+
 // Write forward the stream to the connected logger.
 //
 func (v *Terminal) Write(p []byte) (n int, err error) {
@@ -105,7 +112,7 @@ func (v *Terminal) Write(p []byte) (n int, err error) {
 // GetUserShell gets the user's shell.
 // If empty, the system default (usually "/bin/sh") should be used).
 //
-func (v *Terminal) GetUserShell() string {
+func GetUserShell() string {
 	c := C.vte_get_user_shell()
 	defer C.free(unsafe.Pointer(c))
 	return C.GoString(c)
@@ -114,7 +121,14 @@ func (v *Terminal) GetUserShell() string {
 // Fork starts the given command in the terminal.
 // It's a simple wrapper around vte_terminal_spawn_sync which could be improved.
 //
-func (v *Terminal) Fork(args ...string) error {
+func (v *Terminal) Fork(cwd string, args []string, env map[string]string) (error, int) {
+
+	var ccwd *C.char
+	if cwd != "" {
+		ccwd = C.CString(cwd)
+		defer C.free(unsafe.Pointer(ccwd))
+	}
+
 	cargs := C.make_strings(C.int(len(args)) + 1)
 	for i, j := range args {
 		ptr := C.CString(j)
@@ -123,25 +137,38 @@ func (v *Terminal) Fork(args ...string) error {
 	}
 	C.set_string(cargs, C.int(len(args)), nil) // null terminated list.
 
+	cenv := C.make_strings(C.int(len(env)) + 1)
+	i := 0
+	for k, v := range env {
+		ptr := C.CString(fmt.Sprintf("%s=%s", k, v))
+		defer C.free(unsafe.Pointer(ptr))
+		C.set_string(cenv, C.int(i), ptr)
+		i++
+	}
+	C.set_string(cenv, C.int(len(env)), nil) // null terminated list.
+
 	var cerr *C.GError = nil
+	var cpid C.GPid
 
 	C.vte_terminal_spawn_sync(v.Native(),
 		C.VTE_PTY_DEFAULT, // VtePtyFlags
-		nil,               // const char *working_directory
+		ccwd,               // const char *working_directory
 		cargs,             // char **argv
-		nil,               // char **envv
+		cenv,               // char **envv
 		C.G_SPAWN_SEARCH_PATH, // GSpawnFlags
 		nil,   // GSpawnChildSetupFunc
 		nil,   // gpointer child_setup_data
-		nil,   // GPid *child_pid
+		&cpid,   // GPid *child_pid
 		nil,   // GCancellable *cancellable
 		&cerr, // GError **error
 	)
 	if cerr != nil {
 		defer C.g_error_free(cerr)
-		return errors.New(C.GoString((*C.char)(cerr.message)))
+		return errors.New(C.GoString((*C.char)(cerr.message))), 0
 	}
-	return nil
+
+	return nil, int(cpid)
+
 }
 
 // SetBgColorFromString sets the background color for text which does not have a
@@ -205,6 +232,41 @@ func (v *Terminal) SetColorsFromStrings(pal map[int]string) error {
 	return nil
 }
 
+/**
+ * https://developer.gnome.org/vte/unstable/VteTerminal.html#vte-terminal-get-cursor-position
+ */
+func (v *Terminal) GetCursorPosition() (int32, int32) {
+	var column, row C.glong
+	C.vte_terminal_get_cursor_position(v.Native(), &column, &row)
+	return int32(column), int32(row)
+}
+
+/**
+ * https://developer.gnome.org/vte/unstable/VteTerminal.html#vte-terminal-get-text
+ */
+func (v *Terminal) GetText() string {
+	data := C.vte_terminal_get_text(v.Native(),
+		nil,
+		nil,
+		nil)
+	return C.GoString(data)
+}
+
+/**
+ * https://developer.gnome.org/vte/unstable/VteTerminal.html#vte-terminal-get-text-range
+ */
+func (v *Terminal) GetTextRange(startRow int32, startCol int32, endRow int32, endCol int32) string {
+	data := C.vte_terminal_get_text_range(v.Native(),
+		C.glong(startRow),
+		C.glong(startCol),
+		C.glong(endRow),
+		C.glong(endCol),
+		nil,
+		nil,
+		nil)
+	return C.GoString(data)
+}
+
 // HasSelection checks if the terminal currently contains selected text.
 // Note that this is different from determining if the terminal is the owner of
 // any GtkClipboard items.
@@ -217,10 +279,19 @@ func (v *Terminal) HasSelection() bool {
 	return true
 }
 
-// SelectAll selects all text within the terminal (including the scrollback buffer).
-//
+/**
+  * https://developer.gnome.org/vte/unstable/VteTerminal.html#vte-terminal-select-all
+  * SelectAll selects all text within the terminal (including the scrollback buffer).
+*/
 func (v *Terminal) SelectAll() {
 	C.vte_terminal_select_all(v.Native())
+}
+
+/**
+  * https://developer.gnome.org/vte/unstable/VteTerminal.html#vte-terminal-unselect-all
+*/
+func (v *Terminal) UnSelectAll() {
+	C.vte_terminal_unselect_all(v.Native())
 }
 
 // CopyClipboard places the selected text in the terminal in the
@@ -264,6 +335,16 @@ func (v *Terminal) PastePrimary() {
 func (v *Terminal) Reset(clearTabstops, clearHistory bool) {
 	C.vte_terminal_reset(v.Native(), cbool(clearTabstops), cbool(clearHistory))
 }
+
+
+/**
+ * https://developer.gnome.org/vte/unstable/VteTerminal.html#vte-terminal-watch-child
+ */
+func (v *Terminal) WatchChild(pid int) {
+	C.vte_terminal_watch_child(v.Native(), C.GPid(pid))
+}
+
+
 
 func parseColor(s string, color *C.GdkRGBA) {
 	cstr := C.CString(s)

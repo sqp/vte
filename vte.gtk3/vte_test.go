@@ -5,8 +5,8 @@ import (
 	"github.com/gotk3/gotk3/glib"
 	"github.com/gotk3/gotk3/gtk"
 
+	"github.com/okelet/vte/vte.gtk3"
 	vtecommon "github.com/sqp/vte"
-	"github.com/sqp/vte/vte.gtk3"
 
 	"fmt"
 	"os"
@@ -38,7 +38,7 @@ func Example_fork() {
 	// Signals.
 	win.Connect("destroy", gtk.MainQuit)
 
-	e = term.Fork("sh", "-c", bashCmd)
+	e = term.Fork("", "sh", "-c", bashCmd)
 	if e != nil {
 		fmt.Println(e)
 		return

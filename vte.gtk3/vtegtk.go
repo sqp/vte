@@ -101,3 +101,15 @@ func (v *Terminal) SetFgColor(color *gdk.RGBA) {
 func (v *Terminal) SetFont(font *pango.FontDescription) {
 	C.vte_terminal_set_font(v.termNative(), (*C.PangoFontDescription)(unsafe.Pointer(font.Native())))
 }
+
+func (v *Terminal) SetFontScale(scale float64) {
+	C.vte_terminal_set_font_scale(v.termNative(), C.gdouble(scale))
+}
+
+func (v *Terminal) GetFontScale() float64 {
+	return float64(C.vte_terminal_get_font_scale(v.termNative()))
+}
+
+func (v *Terminal) SetScrollbackLines(val int32) {
+	C.vte_terminal_set_scrollback_lines(v.termNative(), C.glong(val))
+}
