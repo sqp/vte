@@ -4,6 +4,9 @@
 // this library ressources.
 //
 // https://developer.gnome.org/vte/0.40/VteTerminal.html
+//
+// https://developer.gnome.org/vte/unstable/VteTerminal.html
+//
 package vte
 
 // #include <vte/vte.h>
@@ -91,8 +94,8 @@ func (v *Terminal) SetFgColor(color *gdk.RGBA) {
 	C.vte_terminal_set_color_foreground(v.termNative(), (*C.GdkRGBA)(unsafe.Pointer(color.Native())))
 }
 
-// SetFontFromString sets the font used for rendering all text displayed by the
-// terminal, overriding any fonts set using widget.ModifyFont().
+// SetFont sets the font used for rendering all text displayed by the terminal,
+// overriding any fonts set using widget.ModifyFont().
 // The terminal will immediately attempt to load the desired font, retrieve its
 // metrics, and attempt to resize itself to keep the same number of rows and
 // columns. The font scale is applied to the specified font.
@@ -100,16 +103,4 @@ func (v *Terminal) SetFgColor(color *gdk.RGBA) {
 //
 func (v *Terminal) SetFont(font *pango.FontDescription) {
 	C.vte_terminal_set_font(v.termNative(), (*C.PangoFontDescription)(unsafe.Pointer(font.Native())))
-}
-
-func (v *Terminal) SetFontScale(scale float64) {
-	C.vte_terminal_set_font_scale(v.termNative(), C.gdouble(scale))
-}
-
-func (v *Terminal) GetFontScale() float64 {
-	return float64(C.vte_terminal_get_font_scale(v.termNative()))
-}
-
-func (v *Terminal) SetScrollbackLines(val int32) {
-	C.vte_terminal_set_scrollback_lines(v.termNative(), C.glong(val))
 }

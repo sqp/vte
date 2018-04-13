@@ -1,3 +1,4 @@
+// Package goterm is an simple example creating a gtk/vte terminal window in go.
 package main
 
 import (
@@ -14,12 +15,13 @@ const (
 	WinHeight = 300
 )
 
-// Terminal command.
-var TermCommand = []string{"bash", "-c", "echo ptour"}
+// TermCommand to run.
+var TermCommand = []string{"top", "-n", "10"}
 
 func main() {
 	gtk.Init(&os.Args)
-	term, win, e := RunTerminal(TermCommand...)
+
+	term, win, e := vte.NewTerminalWindow()
 	if e != nil {
 		println(e.Error())
 		return
@@ -29,29 +31,22 @@ func main() {
 	term.SetFontFromString(TermFont)
 	win.SetSizeRequest(WinWidth, WinHeight)
 
-	gtk.Main()
-}
-
-// RunTerminal runs the given command in a new terminal window.
-//
-func RunTerminal(args ...string) (*vte.Terminal, *gtk.Window, error) {
-	terminal, window, e := vte.NewTerminalWindow()
-	if e != nil {
-		return nil, nil, e
-	}
-
 	// Signals.
-	terminal.Connect("child-exited", gtk.MainQuit)
-	window.Connect("destroy", gtk.MainQuit)
+	term.Connect("child-exited", gtk.MainQuit)
+	win.Connect("destroy", gtk.MainQuit)
 
 	// Start a command. This is optional, you can fill the terminal yourself.
 	// See the package test for an example.
-	if len(args) > 0 {
-		e = terminal.Fork(args...)
-		if e != nil {
-			return nil, nil, e
+	if len(TermCommand) > 0 {
+		cmd := term.NewCmd(TermCommand...)
+		cmd.OnExec = func(pid int, e error) {
+			if e != nil {
+				println(e)
+				gtk.MainQuit()
+			}
 		}
+		term.ExecAsync(cmd)
 	}
 
-	return terminal, window, nil
+	gtk.Main()
 }
