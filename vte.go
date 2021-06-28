@@ -451,6 +451,28 @@ func (v *Terminal) HasSelection() bool {
 	return true
 }
 
+// GetWindowTitle get the terminal window title.
+//
+func (v *Terminal) GetWindowTitle() string {
+    title := C.vte_terminal_get_window_title(v.Native())
+    return C.GoString(title)
+}
+
+// SetEncoding sets the terminal encoding data.
+//
+func (v *Terminal) SetEncoding(s string) {
+    cstr := C.CString(s)
+    C.vte_terminal_set_encoding(v.Native(), cstr, nil)
+}
+
+// GetEncoding get the name of the encoding in which the terminal
+// expects data to be encoded.
+// 
+func (v *Terminal) GetEncoding() string {
+    encoding := C.vte_terminal_get_encoding(v.Native())
+    return C.GoString(encoding)
+}
+
 // SelectAll selects all text within the terminal (including the scrollback buffer).
 //
 func (v *Terminal) SelectAll() {
